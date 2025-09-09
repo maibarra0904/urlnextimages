@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import Image from 'next/image';
 
 const ImageManager = () => {
   const [imageSrc, setImageSrc] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState([]);
+  const [cloudImages, setCloudImages] = useState([]);
+  const [copiedIdx, setCopiedIdx] = useState(null);
   const fileInputRef = useRef(null);
 
   // Maneja el evento de pegar desde el portapapeles
@@ -37,7 +38,7 @@ const ImageManager = () => {
   // Detecta si está en Netlify (producción)
   const isNetlify = typeof window !== 'undefined' && window.location.hostname.endsWith('netlify.app');
 
-  // Guarda la imagen en el backend
+  // Guarda la imagen en Cloudinary y actualiza la lista
   const handleSave = async () => {
     if (!imageSrc) return;
     setLoading(true);
@@ -55,17 +56,19 @@ const ImageManager = () => {
           reader.readAsDataURL(blob);
         });
       }
-      const endpoint = isNetlify ? '/.netlify/functions/save-image' : '/api/save-image';
+      const endpoint = typeof window !== 'undefined' && window.location.hostname.endsWith('netlify.app')
+        ? '/.netlify/functions/save-image'
+        : '/api/save-image';
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageData: base64 }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.url) {
         setError('');
         setImageSrc(null);
-        fetchImages();
+        setCloudImages(prev => [data.url, ...prev]);
       } else {
         setError(data.error || 'Error al guardar la imagen');
       }
@@ -75,21 +78,7 @@ const ImageManager = () => {
     setLoading(false);
   };
 
-  // Obtiene la lista de imágenes guardadas
-  const fetchImages = async () => {
-    try {
-      const endpoint = isNetlify ? '/.netlify/functions/list-images' : '/api/list-images';
-      const res = await fetch(endpoint);
-      const data = await res.json();
-      setImages(data.images || []);
-    } catch {
-      setImages([]);
-    }
-  };
-
-  useEffect(() => {
-    fetchImages();
-  }, []);
+  // No se necesita fetchImages ni useEffect, solo se actualiza la lista localmente
 
   return (
     <div
@@ -133,19 +122,34 @@ const ImageManager = () => {
         </div>
       )}
       <hr style={{ margin: '32px 0' }} />
-      <h3>Imágenes guardadas</h3>
+      <h3>Imágenes subidas</h3>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-        {images.length === 0 && <span style={{ color: '#888' }}>No hay imágenes guardadas.</span>}
-        {images.map((img) => (
-          <div key={img} style={{ position: 'relative', width: 120, height: 120 }}>
-            <Image
-              src={`/images/${img}`}
-              alt={img}
-              layout="fill"
-              objectFit="cover"
-              style={{ borderRadius: 8, border: '1px solid #ccc' }}
-              unoptimized
-            />
+        {cloudImages.length === 0 && <span style={{ color: '#888' }}>No hay imágenes subidas.</span>}
+        {cloudImages.map((url, idx) => (
+          <div key={url + idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 120 }}>
+            <div style={{ position: 'relative', width: 120, height: 120 }}>
+              <Image
+                src={url}
+                alt={`Imagen subida ${idx + 1}`}
+                layout="fill"
+                objectFit="cover"
+                style={{ borderRadius: 8, border: '1px solid #ccc' }}
+              />
+            </div>
+            <button
+              style={{ marginTop: 6, fontSize: 12, padding: '2px 8px', borderRadius: 6, border: '1px solid #bbb', background: '#f7f7fa', cursor: 'pointer' }}
+              onClick={async () => {
+                await navigator.clipboard.writeText(url);
+                setCopiedIdx(idx);
+                setTimeout(() => setCopiedIdx(null), 1200);
+              }}
+              title="Copiar URL de la imagen"
+            >
+              Copiar URL
+            </button>
+            {copiedIdx === idx && (
+              <span style={{ color: 'green', fontSize: 11, marginTop: 2 }}>¡URL copiada!</span>
+            )}
           </div>
         ))}
       </div>

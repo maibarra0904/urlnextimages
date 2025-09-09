@@ -1,10 +1,15 @@
-import fs from 'fs';
-import path from 'path';
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb', // Permite imágenes grandes
+      sizeLimit: '10mb',
     },
   },
 };
@@ -14,26 +19,29 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
+  // Log credenciales
+  console.log('Cloudinary config:', {
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET ? '***' : undefined,
+  });
+
   const { imageData } = req.body;
+  console.log('imageData recibido:', imageData ? imageData.substring(0, 30) + '...' : 'undefined');
   if (!imageData) {
+    console.error('No se recibió imagen');
     return res.status(400).json({ error: 'No se recibió imagen' });
   }
 
-  // Genera un nombre único
-  const fileName = `img_${Date.now()}.png`;
-  const imagesDir = path.join(process.cwd(), 'public', 'images');
-  if (!fs.existsSync(imagesDir)) {
-    fs.mkdirSync(imagesDir, { recursive: true });
-  }
-
-  // Elimina el prefijo base64 si existe
-  const base64Data = imageData.replace(/^data:image\/(png|bmp|jpeg);base64,/, '');
-  const filePath = path.join(imagesDir, fileName);
-
   try {
-    fs.writeFileSync(filePath, base64Data, 'base64');
-    return res.status(200).json({ success: true, fileName });
+    // Subir imagen a Cloudinary
+    const uploadResponse = await cloudinary.uploader.upload(imageData, {
+      folder: 'urlnext-images',
+    });
+    console.log('Respuesta Cloudinary:', uploadResponse);
+    return res.status(200).json({ success: true, url: uploadResponse.secure_url });
   } catch (err) {
-    return res.status(500).json({ error: 'Error al guardar la imagen' });
+    console.error('Error al subir a Cloudinary:', err);
+    return res.status(500).json({ error: 'Error al subir la imagen a Cloudinary', details: err.message });
   }
 }
