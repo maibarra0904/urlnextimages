@@ -34,17 +34,18 @@ const ImageManager = () => {
     }
   };
 
+  // Detecta si está en Netlify (producción)
+  const isNetlify = typeof window !== 'undefined' && window.location.hostname.endsWith('netlify.app');
+
   // Guarda la imagen en el backend
   const handleSave = async () => {
     if (!imageSrc) return;
     setLoading(true);
     try {
-      // Convertir la imagen a base64 si es un blob
       let base64;
       if (imageSrc.startsWith('data:image')) {
         base64 = imageSrc;
       } else {
-        // Si es un blob, convertir a base64
         const response = await fetch(imageSrc);
         const blob = await response.blob();
         base64 = await new Promise((resolve, reject) => {
@@ -54,7 +55,8 @@ const ImageManager = () => {
           reader.readAsDataURL(blob);
         });
       }
-      const res = await fetch('/api/save-image', {
+      const endpoint = isNetlify ? '/.netlify/functions/save-image' : '/api/save-image';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageData: base64 }),
@@ -76,7 +78,8 @@ const ImageManager = () => {
   // Obtiene la lista de imágenes guardadas
   const fetchImages = async () => {
     try {
-      const res = await fetch('/api/list-images');
+      const endpoint = isNetlify ? '/.netlify/functions/list-images' : '/api/list-images';
+      const res = await fetch(endpoint);
       const data = await res.json();
       setImages(data.images || []);
     } catch {
