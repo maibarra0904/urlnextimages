@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 
 const ImageManager = () => {
@@ -6,6 +6,19 @@ const ImageManager = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [cloudImages, setCloudImages] = useState([]);
+  // Consultar imágenes subidas en Cloudinary al cargar la app
+  useEffect(() => {
+    const fetchCloudImages = async () => {
+      try {
+        const res = await fetch('/api/list-cloudinary');
+        const data = await res.json();
+        setCloudImages(data.images || []);
+      } catch {
+        setCloudImages([]);
+      }
+    };
+    fetchCloudImages();
+  }, []);
   const [copiedIdx, setCopiedIdx] = useState(null);
   const fileInputRef = useRef(null);
 
